@@ -15,6 +15,9 @@ export interface ImageGenerationRequest {
   format?: 'grid' | 'separate';
   fileFormat?: 'png' | 'jpeg';
   seed?: number;
+  // Image quality/size options
+  aspectRatio?: string;
+  imageSize?: string;
   // Preview options
   preview?: boolean;
   noPreview?: boolean;

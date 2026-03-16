@@ -74,6 +74,29 @@ export class ImageGenerator {
     return false;
   }
 
+  private buildGenerationConfig(request: ImageGenerationRequest): Record<string, unknown> {
+    const config: Record<string, unknown> = {
+      responseModalities: ['TEXT', 'IMAGE'],
+    };
+
+    if (request.seed !== undefined) {
+      config.seed = request.seed;
+    }
+
+    const imageConfig: Record<string, string> = {};
+    if (request.aspectRatio) {
+      imageConfig.aspectRatio = request.aspectRatio;
+    }
+    if (request.imageSize) {
+      imageConfig.imageSize = request.imageSize;
+    }
+    if (Object.keys(imageConfig).length > 0) {
+      config.imageConfig = imageConfig;
+    }
+
+    return config;
+  }
+
   private async handlePreview(
     files: string[],
     request: ImageGenerationRequest,
@@ -272,6 +295,7 @@ export class ImageGenerator {
                 parts: [{ text: currentPrompt }],
               },
             ],
+            config: this.buildGenerationConfig(request),
           });
 
           console.error('DEBUG - API Response structure for variation', i + 1);
@@ -458,6 +482,7 @@ export class ImageGenerator {
                   parts: [{ text: stepPrompt }],
                 },
               ],
+              config: this.buildGenerationConfig(request),
             });
   
             if (response.candidates && response.candidates[0]?.content?.parts) {
@@ -589,6 +614,7 @@ export class ImageGenerator {
             ],
           },
         ],
+        config: this.buildGenerationConfig(request),
       });
 
       console.error(

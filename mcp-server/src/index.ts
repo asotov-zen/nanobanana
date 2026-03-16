@@ -97,6 +97,16 @@ class NanoBananaServer {
                   type: 'number',
                   description: 'Seed for reproducible variations',
                 },
+                aspectRatio: {
+                  type: 'string',
+                  enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+                  description: 'Aspect ratio of the generated image (default: 1:1)',
+                },
+                imageSize: {
+                  type: 'string',
+                  enum: ['512', '1K', '2K', '4K'],
+                  description: 'Resolution/quality of the generated image. 512 is fastest, 4K is highest quality (default: 1K)',
+                },
                 preview: {
                   type: 'boolean',
                   description:
@@ -120,6 +130,16 @@ class NanoBananaServer {
                 file: {
                   type: 'string',
                   description: 'The filename of the input image to edit',
+                },
+                aspectRatio: {
+                  type: 'string',
+                  enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+                  description: 'Aspect ratio of the generated image (default: 1:1)',
+                },
+                imageSize: {
+                  type: 'string',
+                  enum: ['512', '1K', '2K', '4K'],
+                  description: 'Resolution/quality of the generated image. 512 is fastest, 4K is highest quality (default: 1K)',
                 },
                 preview: {
                   type: 'boolean',
@@ -145,6 +165,16 @@ class NanoBananaServer {
                 file: {
                   type: 'string',
                   description: 'The filename of the input image to restore',
+                },
+                aspectRatio: {
+                  type: 'string',
+                  enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+                  description: 'Aspect ratio of the generated image (default: 1:1)',
+                },
+                imageSize: {
+                  type: 'string',
+                  enum: ['512', '1K', '2K', '4K'],
+                  description: 'Resolution/quality of the generated image. 512 is fastest, 4K is highest quality (default: 1K)',
                 },
                 preview: {
                   type: 'boolean',
@@ -204,6 +234,16 @@ class NanoBananaServer {
                   description: 'Corner style for app icons',
                   default: 'rounded',
                 },
+                aspectRatio: {
+                  type: 'string',
+                  enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+                  description: 'Aspect ratio of the generated image (default: 1:1)',
+                },
+                imageSize: {
+                  type: 'string',
+                  enum: ['512', '1K', '2K', '4K'],
+                  description: 'Resolution/quality of the generated image. 512 is fastest, 4K is highest quality (default: 1K)',
+                },
                 preview: {
                   type: 'boolean',
                   description:
@@ -260,6 +300,16 @@ class NanoBananaServer {
                   enum: ['tile', 'mirror'],
                   description: 'Tiling method for seamless patterns',
                   default: 'tile',
+                },
+                aspectRatio: {
+                  type: 'string',
+                  enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+                  description: 'Aspect ratio of the generated image (default: 1:1)',
+                },
+                imageSize: {
+                  type: 'string',
+                  enum: ['512', '1K', '2K', '4K'],
+                  description: 'Resolution/quality of the generated image. 512 is fastest, 4K is highest quality (default: 1K)',
                 },
                 preview: {
                   type: 'boolean',
@@ -319,6 +369,16 @@ class NanoBananaServer {
                   enum: ['storyboard', 'individual'],
                   description: 'Output format',
                   default: 'individual',
+                },
+                aspectRatio: {
+                  type: 'string',
+                  enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+                  description: 'Aspect ratio of the generated image (default: 1:1)',
+                },
+                imageSize: {
+                  type: 'string',
+                  enum: ['512', '1K', '2K', '4K'],
+                  description: 'Resolution/quality of the generated image. 512 is fastest, 4K is highest quality (default: 1K)',
                 },
                 preview: {
                   type: 'boolean',
@@ -386,6 +446,16 @@ class NanoBananaServer {
                   description: 'Label and annotation level',
                   default: 'detailed',
                 },
+                aspectRatio: {
+                  type: 'string',
+                  enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+                  description: 'Aspect ratio of the generated image (default: 1:1)',
+                },
+                imageSize: {
+                  type: 'string',
+                  enum: ['512', '1K', '2K', '4K'],
+                  description: 'Resolution/quality of the generated image. 512 is fastest, 4K is highest quality (default: 1K)',
+                },
                 preview: {
                   type: 'boolean',
                   description:
@@ -420,6 +490,8 @@ class NanoBananaServer {
               variations: args?.variations as string[],
               format: (args?.format as 'grid' | 'separate') || 'separate',
               seed: args?.seed as number,
+              aspectRatio: args?.aspectRatio as string,
+              imageSize: args?.imageSize as string,
               preview: args?.preview as boolean,
               noPreview:
                 (args?.noPreview as boolean) ||
@@ -435,6 +507,8 @@ class NanoBananaServer {
               prompt: args?.prompt as string,
               inputImage: args?.file as string,
               mode: 'edit',
+              aspectRatio: args?.aspectRatio as string,
+              imageSize: args?.imageSize as string,
               preview: args?.preview as boolean,
               noPreview:
                 (args?.noPreview as boolean) ||
@@ -449,6 +523,8 @@ class NanoBananaServer {
               prompt: args?.prompt as string,
               inputImage: args?.file as string,
               mode: 'restore',
+              aspectRatio: args?.aspectRatio as string,
+              imageSize: args?.imageSize as string,
               preview: args?.preview as boolean,
               noPreview:
                 (args?.noPreview as boolean) ||
@@ -464,6 +540,8 @@ class NanoBananaServer {
               outputCount: (args?.sizes as number[])?.length || 1,
               mode: 'generate',
               fileFormat: (args?.format as 'png' | 'jpeg') || 'png',
+              aspectRatio: args?.aspectRatio as string,
+              imageSize: args?.imageSize as string,
               preview: args?.preview as boolean,
               noPreview:
                 (args?.noPreview as boolean) ||
@@ -479,6 +557,8 @@ class NanoBananaServer {
               prompt: this.buildPatternPrompt(args),
               outputCount: 1,
               mode: 'generate',
+              aspectRatio: args?.aspectRatio as string,
+              imageSize: args?.imageSize as string,
               preview: args?.preview as boolean,
               noPreview:
                 (args?.noPreview as boolean) ||
@@ -495,6 +575,8 @@ class NanoBananaServer {
               outputCount: (args?.steps as number) || 4,
               mode: 'generate',
               variations: ['sequence-step'],
+              aspectRatio: args?.aspectRatio as string,
+              imageSize: args?.imageSize as string,
               preview: args?.preview as boolean,
               noPreview:
                 (args?.noPreview as boolean) ||
@@ -512,6 +594,8 @@ class NanoBananaServer {
               prompt: this.buildDiagramPrompt(args),
               outputCount: 1,
               mode: 'generate',
+              aspectRatio: args?.aspectRatio as string,
+              imageSize: args?.imageSize as string,
               preview: args?.preview as boolean,
               noPreview:
                 (args?.noPreview as boolean) ||
