@@ -11,7 +11,7 @@ import {
   ImageGenerationResponse,
   AuthConfig,
   StorySequenceArgs,
-  MultiImageRequest,
+  ReferenceMode,
 } from './types.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -271,6 +271,10 @@ export class ImageGenerator {
   async generateTextToImage(
     request: ImageGenerationRequest,
   ): Promise<ImageGenerationResponse> {
+    if (request.referenceImages && request.referenceImages.length > 0) {
+      return this.generateWithReferences(request);
+    }
+
     try {
       const outputPath = FileHandler.ensureOutputDirectory();
       const generatedFiles: string[] = [];
@@ -576,6 +580,10 @@ export class ImageGenerator {
   async editImage(
     request: ImageGenerationRequest,
   ): Promise<ImageGenerationResponse> {
+    if (request.referenceImages && request.referenceImages.length > 0) {
+      return this.generateWithReferences(request);
+    }
+
     try {
       if (!request.inputImage) {
         return {
@@ -599,6 +607,8 @@ export class ImageGenerator {
         fileResult.filePath!,
       );
 
+      const mimeType = FileHandler.getMimeTypeFromExtension(fileResult.filePath!);
+
       const response = await this.ai.models.generateContent({
         model: this.modelName,
         contents: [
@@ -609,7 +619,7 @@ export class ImageGenerator {
               {
                 inlineData: {
                   data: imageBase64,
-                  mimeType: 'image/png',
+                  mimeType,
                 },
               },
             ],
@@ -692,27 +702,79 @@ generatedFiles.push(fullPath);
     }
   }
 
-  async generateWithReferenceImages(
-    request: MultiImageRequest,
+  private async loadAndBuildReferenceImageParts(
+    filenames: string[],
+  ): Promise<{
+    parts: Array<{ inlineData: { data: string; mimeType: string } }>;
+    loadedCount: number;
+    errors: string[];
+  }> {
+    const { images, errors } =
+      await FileHandler.findAndReadMultipleImages(filenames);
+
+    const parts = images.map((img) => ({
+      inlineData: {
+        data: img.data,
+        mimeType: img.mimeType,
+      },
+    }));
+
+    return { parts, loadedCount: images.length, errors };
+  }
+
+  private buildReferencePrompt(
+    basePrompt: string,
+    mode: ReferenceMode | undefined,
+    referenceCount: number,
+    hasPrimaryImage: boolean,
+  ): string {
+    const effectiveMode = mode || 'consistency';
+    let prompt = basePrompt;
+
+    switch (effectiveMode) {
+      case 'style_transfer':
+        if (hasPrimaryImage) {
+          prompt += `. The first image is the content to transform.`;
+          prompt += ` The remaining ${referenceCount} image(s) are the style references.`;
+          prompt += ' Apply the visual style from the style reference images to the content image.';
+        } else {
+          prompt += `. Use the ${referenceCount} provided reference image(s) as style references.`;
+          prompt += ' Apply the visual style from the reference images to the generated content.';
+        }
+        prompt += ' Maintain the composition and subjects while applying the new style.';
+        break;
+
+      case 'composition':
+        prompt += `. Combine all ${referenceCount} provided reference image(s) into a single cohesive composition.`;
+        prompt += ' Blend the elements naturally, maintaining visual harmony and consistent lighting.';
+        break;
+
+      case 'consistency':
+        prompt += `. Use the ${referenceCount} provided reference image(s) to maintain visual consistency.`;
+        prompt += ' Keep the same characters, objects, art style, and visual identity from the references while placing them in the new scene described above.';
+        break;
+    }
+
+    return prompt;
+  }
+
+  private async generateWithReferences(
+    request: ImageGenerationRequest,
   ): Promise<ImageGenerationResponse> {
     try {
-      if (
-        !request.referenceImages ||
-        request.referenceImages.length < 1 ||
-        request.referenceImages.length > 14
-      ) {
+      const refImages = request.referenceImages!;
+      if (refImages.length < 1 || refImages.length > 14) {
         return {
           success: false,
           message: 'Reference images must contain between 1 and 14 images',
-          error: `Received ${request.referenceImages?.length ?? 0} images`,
+          error: `Received ${refImages.length} images`,
         };
       }
 
-      const { images, errors } = await FileHandler.findAndReadMultipleImages(
-        request.referenceImages,
-      );
+      const { parts: referenceParts, loadedCount, errors } =
+        await this.loadAndBuildReferenceImageParts(refImages);
 
-      if (images.length === 0) {
+      if (loadedCount === 0) {
         return {
           success: false,
           message: 'Failed to load any reference images',
@@ -727,23 +789,50 @@ generatedFiles.push(fullPath);
       }
 
       const outputPath = FileHandler.ensureOutputDirectory();
+      const hasPrimaryImage = !!request.inputImage;
 
-      // Build parts: text prompt followed by all reference images
+      // Build augmented prompt
+      const augmentedPrompt = this.buildReferencePrompt(
+        request.prompt,
+        request.referenceMode,
+        loadedCount,
+        hasPrimaryImage,
+      );
+
+      // Build parts: text prompt, then optional primary image, then references
       const parts: Array<
         { text: string } | { inlineData: { data: string; mimeType: string } }
-      > = [{ text: request.prompt }];
+      > = [{ text: augmentedPrompt }];
 
-      for (const img of images) {
+      // If editing, load and place the primary image first (before references)
+      if (request.inputImage) {
+        const fileResult = FileHandler.findInputFile(request.inputImage);
+        if (!fileResult.found || !fileResult.filePath) {
+          return {
+            success: false,
+            message: `Input image not found: ${request.inputImage}`,
+            error: `Searched in: ${fileResult.searchedPaths.join(', ')}`,
+          };
+        }
+        const primaryBase64 = await FileHandler.readImageAsBase64(
+          fileResult.filePath,
+        );
+        const primaryMimeType = FileHandler.getMimeTypeFromExtension(
+          fileResult.filePath,
+        );
         parts.push({
           inlineData: {
-            data: img.data,
-            mimeType: img.mimeType,
+            data: primaryBase64,
+            mimeType: primaryMimeType,
           },
         });
       }
 
+      // Add reference image parts
+      parts.push(...referenceParts);
+
       console.error(
-        `DEBUG - Sending ${request.mode} request with ${images.length} reference image(s)`,
+        `DEBUG - Sending reference request with ${loadedCount} reference image(s)${hasPrimaryImage ? ' + primary image' : ''}`,
       );
 
       const response = await this.ai.models.generateContent({
@@ -758,7 +847,7 @@ generatedFiles.push(fullPath);
       });
 
       console.error(
-        'DEBUG - Multi-image API Response structure:',
+        'DEBUG - Reference API Response structure:',
         JSON.stringify(response, null, 2),
       );
 
@@ -815,7 +904,7 @@ generatedFiles.push(fullPath);
 
         return {
           success: true,
-          message: `Successfully generated image with ${images.length} reference(s)${warningNote}`,
+          message: `Successfully generated image with ${loadedCount} reference(s)${warningNote}`,
           generatedFiles,
         };
       }
@@ -826,7 +915,7 @@ generatedFiles.push(fullPath);
         error: 'No image data in response',
       };
     } catch (error: unknown) {
-      console.error('DEBUG - Error in generateWithReferenceImages:', error);
+      console.error('DEBUG - Error in generateWithReferences:', error);
       return {
         success: false,
         message: 'Failed to generate image with references',
