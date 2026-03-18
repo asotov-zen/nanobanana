@@ -11,6 +11,7 @@ import {
   ImageGenerationResponse,
   AuthConfig,
   StorySequenceArgs,
+  MultiImageRequest,
 } from './types.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -59,7 +60,7 @@ export class ImageGenerator {
     }
   }
 
-  private shouldAutoPreview(request: ImageGenerationRequest): boolean {
+  private shouldAutoPreview(request: { preview?: boolean; noPreview?: boolean }): boolean {
     // If --no-preview is explicitly set, never preview
     if (request.noPreview) {
       return false;
@@ -74,7 +75,7 @@ export class ImageGenerator {
     return false;
   }
 
-  private buildGenerationConfig(request: ImageGenerationRequest): Record<string, unknown> {
+  private buildGenerationConfig(request: { aspectRatio?: string; imageSize?: string; seed?: number }): Record<string, unknown> {
     const config: Record<string, unknown> = {
       responseModalities: ['TEXT', 'IMAGE'],
     };
@@ -99,7 +100,7 @@ export class ImageGenerator {
 
   private async handlePreview(
     files: string[],
-    request: ImageGenerationRequest,
+    request: { preview?: boolean; noPreview?: boolean },
   ): Promise<void> {
     const shouldPreview = this.shouldAutoPreview(request);
 
@@ -686,6 +687,149 @@ generatedFiles.push(fullPath);
       return {
         success: false,
         message: `Failed to ${request.mode} image`,
+        error: this.handleApiError(error),
+      };
+    }
+  }
+
+  async generateWithReferenceImages(
+    request: MultiImageRequest,
+  ): Promise<ImageGenerationResponse> {
+    try {
+      if (
+        !request.referenceImages ||
+        request.referenceImages.length < 1 ||
+        request.referenceImages.length > 14
+      ) {
+        return {
+          success: false,
+          message: 'Reference images must contain between 1 and 14 images',
+          error: `Received ${request.referenceImages?.length ?? 0} images`,
+        };
+      }
+
+      const { images, errors } = await FileHandler.findAndReadMultipleImages(
+        request.referenceImages,
+      );
+
+      if (images.length === 0) {
+        return {
+          success: false,
+          message: 'Failed to load any reference images',
+          error: errors.join('; '),
+        };
+      }
+
+      if (errors.length > 0) {
+        console.error(
+          `DEBUG - Partial image load failures: ${errors.join('; ')}`,
+        );
+      }
+
+      const outputPath = FileHandler.ensureOutputDirectory();
+
+      // Build parts: text prompt followed by all reference images
+      const parts: Array<
+        { text: string } | { inlineData: { data: string; mimeType: string } }
+      > = [{ text: request.prompt }];
+
+      for (const img of images) {
+        parts.push({
+          inlineData: {
+            data: img.data,
+            mimeType: img.mimeType,
+          },
+        });
+      }
+
+      console.error(
+        `DEBUG - Sending ${request.mode} request with ${images.length} reference image(s)`,
+      );
+
+      const response = await this.ai.models.generateContent({
+        model: this.modelName,
+        contents: [
+          {
+            role: 'user',
+            parts,
+          },
+        ],
+        config: this.buildGenerationConfig(request),
+      });
+
+      console.error(
+        'DEBUG - Multi-image API Response structure:',
+        JSON.stringify(response, null, 2),
+      );
+
+      if (response.candidates && response.candidates[0]?.content?.parts) {
+        const generatedFiles: string[] = [];
+
+        for (const part of response.candidates[0].content.parts) {
+          let imageBase64: string | undefined;
+
+          if (part.inlineData?.data) {
+            imageBase64 = part.inlineData.data;
+            console.error('DEBUG - Found image in inlineData:', {
+              length: imageBase64.length,
+              mimeType: part.inlineData.mimeType,
+            });
+          } else if (part.text && this.isValidBase64ImageData(part.text)) {
+            imageBase64 = part.text;
+            console.error(
+              'DEBUG - Found image in text field (fallback)',
+            );
+          }
+
+          if (imageBase64) {
+            const filename = FileHandler.generateFilename(
+              `${request.mode}_${request.prompt}`,
+              request.fileFormat,
+              0,
+            );
+            const fullPath = await FileHandler.saveImageFromBase64(
+              imageBase64,
+              outputPath,
+              filename,
+            );
+            generatedFiles.push(fullPath);
+            console.error('DEBUG - Generated image saved to:', fullPath);
+            break; // Only process the first valid image
+          }
+        }
+
+        if (generatedFiles.length === 0) {
+          return {
+            success: false,
+            message: 'No image data found in API response',
+            error: 'The model did not return image data',
+          };
+        }
+
+        await this.handlePreview(generatedFiles, request);
+
+        const warningNote =
+          errors.length > 0
+            ? ` (warning: ${errors.length} reference image(s) failed to load)`
+            : '';
+
+        return {
+          success: true,
+          message: `Successfully generated image with ${images.length} reference(s)${warningNote}`,
+          generatedFiles,
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Failed to generate image with references',
+        error: 'No image data in response',
+      };
+    } catch (error: unknown) {
+      console.error('DEBUG - Error in generateWithReferenceImages:', error);
+      return {
+        success: false,
+        message: 'Failed to generate image with references',
         error: this.handleApiError(error),
       };
     }

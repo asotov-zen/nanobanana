@@ -72,3 +72,23 @@ export interface DiagramPromptArgs {
   colors?: string;
   annotations?: string;
 }
+
+export type MultiImageMode = 'transfer_style' | 'compose_images' | 'generate_consistent';
+
+export interface ResolvedImage {
+  data: string;        // base64
+  mimeType: string;    // e.g. 'image/jpeg'
+  sourcePath: string;  // resolved absolute path
+}
+
+export interface MultiImageRequest {
+  prompt: string;
+  referenceImages: string[];       // file paths, 1-14 images
+  mode: MultiImageMode;
+  aspectRatio?: string;
+  imageSize?: string;
+  seed?: number;
+  fileFormat?: 'png' | 'jpeg';
+  preview?: boolean;
+  noPreview?: boolean;
+}

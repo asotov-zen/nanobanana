@@ -15,6 +15,7 @@ import {
 import { ImageGenerator } from './imageGenerator.js';
 import {
   ImageGenerationRequest,
+  MultiImageRequest,
   IconPromptArgs,
   PatternPromptArgs,
   DiagramPromptArgs,
@@ -466,6 +467,142 @@ class NanoBananaServer {
               required: ['prompt'],
             },
           },
+          {
+            name: 'transfer_style',
+            description:
+              'Transfer the visual style from reference images onto content images. Provide content images to transform and optionally style reference images.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                prompt: {
+                  type: 'string',
+                  description:
+                    'Description of the desired style transfer (e.g. "Apply watercolor painting style")',
+                },
+                contentImages: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description:
+                    'File paths of images to transform (1-7 images)',
+                  minItems: 1,
+                  maxItems: 7,
+                },
+                styleImages: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description:
+                    'File paths of style reference images (0-7 images). If omitted, style is described in the prompt.',
+                  maxItems: 7,
+                },
+                aspectRatio: {
+                  type: 'string',
+                  enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+                  description: 'Aspect ratio of the output image (default: 1:1)',
+                },
+                imageSize: {
+                  type: 'string',
+                  enum: ['512', '1K', '2K', '4K'],
+                  description: 'Resolution/quality of the output image (default: 1K)',
+                },
+                seed: {
+                  type: 'number',
+                  description: 'Seed for reproducible results',
+                },
+                preview: {
+                  type: 'boolean',
+                  description: 'Automatically open generated image in default viewer',
+                  default: false,
+                },
+              },
+              required: ['prompt', 'contentImages'],
+            },
+          },
+          {
+            name: 'compose_images',
+            description:
+              'Combine multiple images into a single cohesive composition. Provide 2-14 images and describe how they should be merged.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                prompt: {
+                  type: 'string',
+                  description:
+                    'Instructions for how to combine the images (e.g. "Merge these into a panoramic landscape")',
+                },
+                images: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description:
+                    'File paths of images to combine (2-14 images)',
+                  minItems: 2,
+                  maxItems: 14,
+                },
+                aspectRatio: {
+                  type: 'string',
+                  enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+                  description: 'Aspect ratio of the output image (default: 1:1)',
+                },
+                imageSize: {
+                  type: 'string',
+                  enum: ['512', '1K', '2K', '4K'],
+                  description: 'Resolution/quality of the output image (default: 1K)',
+                },
+                seed: {
+                  type: 'number',
+                  description: 'Seed for reproducible results',
+                },
+                preview: {
+                  type: 'boolean',
+                  description: 'Automatically open generated image in default viewer',
+                  default: false,
+                },
+              },
+              required: ['prompt', 'images'],
+            },
+          },
+          {
+            name: 'generate_consistent',
+            description:
+              'Generate a new image while maintaining visual consistency with reference images. Use this to place existing characters or objects into new scenes.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                prompt: {
+                  type: 'string',
+                  description:
+                    'Description of the new scene to generate (e.g. "The character sitting in a coffee shop")',
+                },
+                referenceImages: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description:
+                    'File paths of reference images showing characters/objects to maintain consistency with (1-14 images)',
+                  minItems: 1,
+                  maxItems: 14,
+                },
+                aspectRatio: {
+                  type: 'string',
+                  enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'],
+                  description: 'Aspect ratio of the output image (default: 1:1)',
+                },
+                imageSize: {
+                  type: 'string',
+                  enum: ['512', '1K', '2K', '4K'],
+                  description: 'Resolution/quality of the output image (default: 1K)',
+                },
+                seed: {
+                  type: 'number',
+                  description: 'Seed for reproducible results',
+                },
+                preview: {
+                  type: 'boolean',
+                  description: 'Automatically open generated image in default viewer',
+                  default: false,
+                },
+              },
+              required: ['prompt', 'referenceImages'],
+            },
+          },
         ],
       };
     });
@@ -606,6 +743,81 @@ class NanoBananaServer {
             break;
           }
 
+          case 'transfer_style': {
+            const contentImages = (args?.contentImages as string[]) || [];
+            const styleImages = (args?.styleImages as string[]) || [];
+            const allImages = [...contentImages, ...styleImages];
+            const multiRequest: MultiImageRequest = {
+              prompt: this.buildStyleTransferPrompt(
+                args?.prompt as string,
+                contentImages.length,
+                styleImages.length,
+              ),
+              referenceImages: allImages,
+              mode: 'transfer_style',
+              aspectRatio: args?.aspectRatio as string,
+              imageSize: args?.imageSize as string,
+              seed: args?.seed as number,
+              preview: args?.preview as boolean,
+              noPreview:
+                (args?.noPreview as boolean) ||
+                (args?.['no-preview'] as boolean),
+            };
+            response =
+              await this.imageGenerator.generateWithReferenceImages(
+                multiRequest,
+              );
+            break;
+          }
+
+          case 'compose_images': {
+            const images = (args?.images as string[]) || [];
+            const composeRequest: MultiImageRequest = {
+              prompt: this.buildComposePrompt(
+                args?.prompt as string,
+                images.length,
+              ),
+              referenceImages: images,
+              mode: 'compose_images',
+              aspectRatio: args?.aspectRatio as string,
+              imageSize: args?.imageSize as string,
+              seed: args?.seed as number,
+              preview: args?.preview as boolean,
+              noPreview:
+                (args?.noPreview as boolean) ||
+                (args?.['no-preview'] as boolean),
+            };
+            response =
+              await this.imageGenerator.generateWithReferenceImages(
+                composeRequest,
+              );
+            break;
+          }
+
+          case 'generate_consistent': {
+            const refImages = (args?.referenceImages as string[]) || [];
+            const consistentRequest: MultiImageRequest = {
+              prompt: this.buildConsistentPrompt(
+                args?.prompt as string,
+                refImages.length,
+              ),
+              referenceImages: refImages,
+              mode: 'generate_consistent',
+              aspectRatio: args?.aspectRatio as string,
+              imageSize: args?.imageSize as string,
+              seed: args?.seed as number,
+              preview: args?.preview as boolean,
+              noPreview:
+                (args?.noPreview as boolean) ||
+                (args?.['no-preview'] as boolean),
+            };
+            response =
+              await this.imageGenerator.generateWithReferenceImages(
+                consistentRequest,
+              );
+            break;
+          }
+
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -687,6 +899,42 @@ class NanoBananaServer {
     prompt += `, ${annotations} annotations and labels`;
     prompt += ', clean technical illustration, clear visual hierarchy';
 
+    return prompt;
+  }
+
+  private buildStyleTransferPrompt(
+    userPrompt: string,
+    contentCount: number,
+    styleCount: number,
+  ): string {
+    let prompt = userPrompt;
+
+    if (styleCount > 0) {
+      prompt += `. The first ${contentCount} image(s) are the content to transform.`;
+      prompt += ` The last ${styleCount} image(s) are the style references.`;
+      prompt += ' Apply the visual style from the style reference images to the content images.';
+    } else {
+      prompt += `. Transform the provided ${contentCount} image(s) using the style described above.`;
+    }
+
+    prompt += ' Maintain the composition and subjects from the content images while applying the new style.';
+    return prompt;
+  }
+
+  private buildComposePrompt(userPrompt: string, imageCount: number): string {
+    let prompt = userPrompt;
+    prompt += `. Combine all ${imageCount} provided images into a single cohesive composition.`;
+    prompt += ' Blend the elements naturally, maintaining visual harmony and consistent lighting.';
+    return prompt;
+  }
+
+  private buildConsistentPrompt(
+    userPrompt: string,
+    referenceCount: number,
+  ): string {
+    let prompt = userPrompt;
+    prompt += `. Use the ${referenceCount} provided reference image(s) to maintain visual consistency.`;
+    prompt += ' Keep the same characters, objects, art style, and visual identity from the references while placing them in the new scene described above.';
     return prompt;
   }
 

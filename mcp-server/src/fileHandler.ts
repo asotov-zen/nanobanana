@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { FileSearchResult } from './types.js';
+import { FileSearchResult, ResolvedImage } from './types.js';
 
 export class FileHandler {
   private static readonly OUTPUT_DIR = 'nanobanana-output';
@@ -103,5 +103,54 @@ export class FileHandler {
   static async readImageAsBase64(filePath: string): Promise<string> {
     const buffer = await fs.promises.readFile(filePath);
     return buffer.toString('base64');
+  }
+
+  static getMimeTypeFromExtension(filePath: string): string {
+    const ext = path.extname(filePath).toLowerCase();
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.webp':
+        return 'image/webp';
+      case '.gif':
+        return 'image/gif';
+      case '.png':
+      default:
+        return 'image/png';
+    }
+  }
+
+  static async findAndReadMultipleImages(
+    filenames: string[],
+  ): Promise<{ images: ResolvedImage[]; errors: string[] }> {
+    const images: ResolvedImage[] = [];
+    const errors: string[] = [];
+
+    for (const filename of filenames) {
+      const fileResult = this.findInputFile(filename);
+      if (!fileResult.found || !fileResult.filePath) {
+        errors.push(
+          `Image not found: ${filename} (searched: ${fileResult.searchedPaths.join(', ')})`,
+        );
+        continue;
+      }
+
+      try {
+        const data = await this.readImageAsBase64(fileResult.filePath);
+        const mimeType = this.getMimeTypeFromExtension(fileResult.filePath);
+        images.push({
+          data,
+          mimeType,
+          sourcePath: fileResult.filePath,
+        });
+      } catch (error: unknown) {
+        errors.push(
+          `Failed to read ${filename}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    return { images, errors };
   }
 }
