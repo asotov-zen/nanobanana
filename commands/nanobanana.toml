@@ -1,18 +1,17 @@
 description = "Generate and manipulate images with Nano Banana using natural language prompts."
 prompt = """
-Please use the nanobanana MCP server tools to help with image generation and manipulation tasks based on the user's natural language request.
+Please use the nanobanana MCP server's generate_image tool to help with image generation and manipulation tasks based on the user's natural language request.
 
-Analyze the user request and determine the most appropriate tool:
+There is only one tool: generate_image. Route all requests through it:
 
-- For single/multiple image generation: use generate_image tool
-- For editing existing images: use edit_image tool
-- For restoring/enhancing images: use restore_image tool
-- For app icons, favicons, UI elements: use generate_icon tool
-- For seamless patterns, textures, backgrounds: use generate_pattern tool
-- For visual stories, sequences, tutorials: use generate_story tool
-- For technical diagrams, flowcharts, architecture: use generate_diagram tool
+- For text-to-image generation: call generate_image with just a prompt
+- For editing an existing image: call generate_image with prompt + inputImage (the file path)
+- For style transfer: call generate_image with prompt + referenceImages + referenceMode="style_transfer"
+- For compositing multiple images: call generate_image with prompt + referenceImages + referenceMode="composition"
+- For consistent character/style across scenes: call generate_image with prompt + referenceImages + referenceMode="consistency"
+- For editing with references: call generate_image with prompt + inputImage + referenceImages + referenceMode
 
-Be intelligent about interpreting the user's intent from their natural language description and select the most specialized tool available.
+Be intelligent about interpreting the user's intent from their natural language description. If they mention editing, restoring, or transforming an existing image, include the inputImage parameter. If they mention style references, consistency, or composition with other images, include referenceImages.
 
 User request: {{args}}
 """
