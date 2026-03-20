@@ -13,6 +13,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { ImageGenerator } from './imageGenerator.js';
+import { FileHandler } from './fileHandler.js';
 import {
   ImageGenerationRequest,
   ReferenceMode,
@@ -141,12 +142,31 @@ class NanoBananaServer {
             throw new Error(`Unknown tool: ${name}`);
         }
 
-        if (response.success) {
+        if (response.success && response.generatedFiles?.length) {
+          const filePath = response.generatedFiles[0];
+          const fileName = filePath.split('/').pop() || 'image.png';
+          const mimeType = FileHandler.getMimeTypeFromExtension(filePath);
+
           return {
             content: [
               {
-                type: 'text',
-                text: `${response.message}\n\nGenerated files:\n${response.generatedFiles?.map((f) => `• ${f}`).join('\n') || 'None'}`,
+                type: 'text' as const,
+                text: response.message,
+              },
+              {
+                type: 'resource_link' as const,
+                uri: `file://${filePath}`,
+                mimeType,
+                name: fileName,
+              },
+            ],
+          };
+        } else if (response.success) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: response.message,
               },
             ],
           };
