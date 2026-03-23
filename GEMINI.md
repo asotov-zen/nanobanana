@@ -1,39 +1,21 @@
 # Nano Banana - Gemini Image Generation Instructions
 
-This file contains specific instructions for the Nano Banana 2 (gemini-3.1-flash-image-preview) model when working with the Nano Banana extension for image generation, editing, and restoration.
+This file contains specific instructions for the Nano Banana (gemini-3.1-flash-image-preview) model when working with the Nano Banana extension for image generation.
+
+## Single Tool: `generate_image`
+
+All image operations go through a single `generate_image` tool. The tool behavior depends on which parameters are provided:
+
+- **Text-to-image**: Just `prompt` — generates a new image from text
+- **Edit/transform**: `prompt` + `inputImage` — modifies an existing image
+- **With references**: `prompt` + `referenceImages` — uses reference images for style, composition, or consistency
+- **Edit with references**: `prompt` + `inputImage` + `referenceImages` — edits an existing image using reference images
+
+Each call produces exactly **1 output image**. For multiple images, make sequential calls.
 
 ## Core Generation Principles
 
-### 1. Precise Count Adherence
-
-**CRITICAL**: When a user specifies a `--count=N` parameter, you MUST generate exactly N images, no more and no less. This is a strict requirement:
-
-- `--count=3` means exactly 3 images
-- `--count=6` means exactly 6 images
-- If no count is specified, generate 1 image (default)
-- Never generate fewer images than requested due to "similar results" or other reasons
-
-### 2. Style and Variation Compliance
-
-Always respect user-specified design preferences:
-
-- **`--styles`**: Apply the exact artistic styles requested (watercolor, oil-painting, sketch, photorealistic, etc.)
-- **`--variations`**: Implement the specific variation types (lighting, angle, color-palette, composition, mood, season, time-of-day)
-- Maintain the essence of the original prompt while applying the requested stylistic changes
-- When multiple styles are requested, ensure each image distinctly represents its assigned style
-
-### 3. Visual Consistency for Story Commands
-
-When processing `/story` commands, maintain strict visual consistency across all generated images:
-
-- **Color Palette**: Use the same or very similar color schemes across all story frames
-- **Typography**: Keep fonts, text sizes, and formatting identical throughout the sequence
-- **Art Style**: Maintain consistent artistic approach (same level of detail, shading, line work)
-- **Character Design**: Keep character appearances consistent (clothing, proportions, features)
-- **Visual Theme**: Preserve the same visual mood and aesthetic throughout the story
-- **Layout**: Use similar composition and framing approaches for coherence
-
-### 4. Text Accuracy and Quality
+### 1. Text Accuracy and Quality
 
 When generating text within images, prioritize accuracy and professionalism:
 
@@ -42,82 +24,43 @@ When generating text within images, prioritize accuracy and professionalism:
 - **Relevance**: Only include text that directly relates to the prompt
 - **Clarity**: Make text clearly readable and well-positioned
 - **No Hallucination**: Never add unrelated words, phrases, or content not specified in the prompt
-- **Context Awareness**: Ensure text matches the intended purpose (technical diagrams need technical terminology, creative content can be more artistic)
 
-## Command-Specific Guidelines
+### 2. Input Image Editing
 
-### Icon Generation (`/icon`)
-
-- Create clean, scalable designs suitable for the specified sizes
-- Use appropriate icon conventions for the target platform
-- Ensure legibility at smaller sizes
-- Consider the icon's context (app icon, favicon, UI element)
-
-### Pattern Generation (`/pattern`)
-
-- For seamless patterns, ensure perfect tiling without visible seams
-- Match the requested density (sparse/medium/dense) accurately
-- Respect color scheme limitations (mono/duotone/colorful)
-
-### Diagram Creation (`/diagram`)
-
-- Use professional diagramming conventions
-- Ensure text labels are clear and properly positioned
-- Follow standard symbols and layouts for the diagram type
-- Maintain readability at the intended viewing size
-
-### Image Editing (`/edit`)
+When `inputImage` is provided:
 
 - Preserve the original image's overall quality and style
 - Make only the requested modifications
 - Ensure edits look natural and integrated
+- This covers editing, restoration, enhancement — the prompt describes what to do
 
-### Image Restoration (`/restore`)
+### 3. Reference Images
 
-- Focus on enhancing and repairing without altering the original intent
-- Improve technical quality while preserving historical accuracy
-- Remove only specified defects (scratches, tears, etc.)
+When `referenceImages` are provided, behavior depends on `referenceMode`:
+
+- **`style_transfer`**: Apply the visual style from reference images to the generated/edited content. Maintain composition and subjects while applying the new style.
+- **`composition`**: Combine elements from all reference images into a single cohesive composition with natural blending.
+- **`consistency`** (default): Maintain visual consistency — same characters, objects, art style, and visual identity from references while placing them in the new scene.
 
 ## Quality Standards
 
-### Technical Requirements
-
 - Generate high-quality images suitable for their intended use
 - Ensure appropriate resolution and aspect ratios
-- Maintain consistent lighting and perspective within multi-image sets
 - Use proper color theory and composition principles
-
-### Creative Standards
-
 - Balance user specifications with artistic best practices
-- Create visually appealing results that meet functional requirements
-- Consider the target audience and use case
-- Maintain brand consistency when applicable
 
 ## Error Prevention
 
-### Common Issues to Avoid
-
-- Generating incorrect quantities of images
-- Mixing incompatible styles within a single image
-- Creating inconsistent visual elements in story sequences
-- Including irrelevant or incorrect text content
-- Ignoring specified technical parameters (sizes, formats, etc.)
-
-### Quality Assurance
-
-- Double-check that generated content matches all specified parameters
+- Do not include irrelevant or incorrect text content
+- Check that generated content matches all specified parameters
 - Verify text accuracy before finalizing images
-- Ensure visual consistency meets the command's requirements
 - Confirm that the output serves the user's stated purpose
 
 ## Response Format
 
-When generating images, provide clear, descriptive information about:
+When generating images, provide clear information about:
 
-- What was generated (description of each image)
+- What was generated (description of the image)
 - Which parameters were applied
-- File names and locations where images were saved
+- File name and location where the image was saved
 - Any limitations or considerations for the generated content
-
-Remember: Your role is to faithfully execute the user's creative vision while maintaining the highest standards of quality and accuracy. Every parameter specified by the user is important and should be respected in the final output.
